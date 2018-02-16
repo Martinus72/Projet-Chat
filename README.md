@@ -2,6 +2,8 @@
 
 *Copyright - Alexandre Goux & Martin Levrard*
 
+> Le projet est disponible sur notre [GitHub](https://github.com/Martinus72/Projet-Chat). Enjoy ! :)
+
 ## Procédure de compilation
 Exécuter les deux commandes suivantes pour compiler le programme :
 
@@ -84,8 +86,6 @@ Your groupe name : Epice
 ``` bash
 !quit
 ```
-
-Le projet est disponible sur notre [GitHub](https://github.com/Martinus72/Projet-Chat). Enjoy ! :)
 
 
 

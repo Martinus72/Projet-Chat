@@ -79,10 +79,10 @@ Your groupe name : Epice
 !color red
 ```
 
-11/ Changer de couleur :
+11/ Pour chaque client, quitter :
 
 ``` bash
-!color red
+!quit
 ```
 
 

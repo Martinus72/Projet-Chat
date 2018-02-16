@@ -1,151 +1,129 @@
-/*----------------------------------------------
-Serveur à lancer avant le client
-------------------------------------------------*/
+/**
+*	Server source code
+*	Alexandre Goux, Martin Levrard
+**/
+
 #include <stdlib.h>
 #include <stdio.h>
-// On linux
-//#include <linux/types.h>
-// On macOS
-#include <sys/types.h>
+#include <linux/types.h> 	
 #include <sys/socket.h>
-#include <netdb.h>
-#include <string.h>
-#include <pthread.h>
+#include <netdb.h> 		
+#include <string.h> 		 
+#include <pthread.h> 
 #include <stddef.h>
-#define TAILLE_MAX_NOM 256
 
+#include "extension.h"
+#include "sfunct.h"
 
-#define NOMBRE_MAX_CO 4
+/* Reading thread in continious from the given socket */
+void* reading_thread(void *s_descriptor){
+	int socket_descriptor,
+		i;
+	socket_descriptor = (int) s_descriptor;
 
-int sockets[NOMBRE_MAX_CO];
-int nbClient = 0;
+	char msg[4096];
 
-typedef struct sockaddr sockaddr;
-typedef struct sockaddr_in sockaddr_in;
-typedef struct hostent hostent;
-typedef struct servent servent;
+	while(1){
+		MsgToReturn = reading(socket_descriptor);
 
-/*------------------------------------------------------*/
-void envoi (int sock) {
-    char buffer[256];
-    int longueur;
+		// Check if client want leave
+		if (strstr(MsgToReturn, "!quit" ) != NULL ){
+			printf("Client %d want to leave\n", socket_descriptor);
+			replying(socket_descriptor, "disconnected");
+			printf("Logout accepted\n");
+			sleep(2);
 
-    if ((longueur = read(sock, buffer, sizeof(buffer))) <= 0)
-    	return;
+			// Free up space in socket list
+			for (i=0; i< countActiveConnection; i++){
+				if (socketList[i] == socket_descriptor){
+					socketList[i] = 0;
+				}
+			}
+			countActiveConnection--;
+			break;
 
-    printf("message lu : %s \n", buffer);
-
-    buffer[longueur+1] ='\0';
-
-    for (int i = 0; i < nbClient; i++){
-      write(sockets[i],buffer,strlen(buffer)+1);
-      printf("message envoye. \n");
-      printf("Tableau Socket tour numero : %d \n", i);
-    }
-
-    return;
+		} else if (strstr(MsgToReturn, "!nb" ) != NULL ){
+			sprintf(msg, "%d client on the server\n", countActiveConnection);
+			MsgToReturn = msg;
+		}
+		printf("Client %d receip message : %s\n",socket_descriptor, MsgToReturn);
+	}
 }
 
-int acceptConnexion(int socket_descriptor) {
-    int longueur_adresse_courante,
-        nouv_socket_descriptor;
+/* Server's thread receipt and return messages */
+void* writing_thread(void *structure){
+	infosThread* infos;
+	int i = 0;	
+	int new_socket_descriptor,
+		tabDeSockets[NB_MAX_CO];
 
-    sockaddr_in adresse_client_courant;
-    longueur_adresse_courante = sizeof(adresse_client_courant);
-
-    /* adresse_client_courant sera renseigné par accept via les infos du connect */
-    if ((nouv_socket_descriptor = accept(socket_descriptor, (sockaddr*)(&adresse_client_courant), &longueur_adresse_courante)) < 0) {
-      perror("erreur : impossible d'accepter la connexion avec le client.");
-      exit(1);
-    }
-
-    printf("Un client s'est connecté. \n");
-    return nouv_socket_descriptor;
-}
-/* Ajout du nouveau client dans un tableau */
-void addToList(int socket_descriptor) {
-  // Boolean
-  int socketAdded = 0;
-
-  for (int i = 0; i < NOMBRE_MAX_CO; i++){
-    if (sockets[i] == 0)	{
-      sockets[i] = socket_descriptor;
-      socketAdded = 1;
-      nbClient++;
-      break;
-    }
-  }
-  // Si case non libre, on ajoute à la fin
-  if (socketAdded == 0) {
-    sockets[nbClient] = socket_descriptor;
-    nbClient++;
-  }
+	infos  = (infosThread*) structure;		
+	
+	while(1){
+		//Check if message, return to all client
+		if (strcmp(MsgToReturn, "") != 0){
+			for (i = 0; i < countActiveConnection; i++){
+				if(socketList[i] != 0){
+					replying(socketList[i], MsgToReturn);
+				}
+			}	
+			MsgToReturn = "";
+		}
+	}
 }
 
 main(int argc, char **argv) {
-    int socket_descriptor, 		/* descripteur de socket */
-	      nouv_socket_descriptor, 	/* [nouveau] descripteur de socket */
-			  longueur_adresse_courante; 	/* longueur d'adresse courante d'un client */
+	int socket_descriptor, 
+		i,
+		n,
+		cancel; 		
+		
+	char in_msg[256];
+	
+	infosThread * infos = malloc(sizeof(int)+sizeof(int)+4096);
 
-    sockaddr_in 	adresse_locale, 		/* structure d'adresse locale*/
-			            adresse_client_courant; 	/* adresse client courant */
+	pthread_t thread_Write;
+	pthread_t thread_Read;
+	
+	// Init server
+	socket_descriptor = initServer(NB_MAX_CO);
 
-    hostent*		ptr_hote; 			/* les infos recuperees sur la machine hote */
-    servent*		ptr_service; 			/* les infos recuperees sur le service de la machine */
+	// Init list of socket
+	for (i = 0; i < NB_MAX_CO; i++){
+		socketList[i] = 0;			
+	}
 
-    char 		machine[TAILLE_MAX_NOM+1]; 	/* nom de la machine locale */
+	if (pthread_create(&thread_Write, NULL, writing_thread, (void*)infos)  ==  0) {
+		printf("INFO - Server's write thread initiated\n");
+	} else printf("ERROR - Server's write thread not initiated\n");
 
-    gethostname(machine,TAILLE_MAX_NOM);		/* recuperation du nom de la machine */
+	// Waiting connection
+    while(1) {
+	
+		// Check if the server isn't full
+		if(countActiveConnection < NB_MAX_CO){
 
-    /* recuperation de la structure d'adresse en utilisant le nom */
-    if ((ptr_hote = gethostbyname(machine)) == NULL) {
-		perror("erreur : impossible de trouver le serveur a partir de son nom.");
-		exit(1);
-    }
+			int new_socket_descriptor = acceptNewCo(socket_descriptor);
 
-    /* initialisation de la structure adresse_locale avec les infos recuperees */
+			// Add in socket list
+			addSocketList(new_socket_descriptor);
 
-    /* copie de ptr_hote vers adresse_locale */
-    bcopy((char*)ptr_hote->h_addr, (char*)&adresse_locale.sin_addr, ptr_hote->h_length);
-    adresse_locale.sin_family		= ptr_hote->h_addrtype; 	/* ou AF_INET */
-    adresse_locale.sin_addr.s_addr	= INADDR_ANY; 			/* ou AF_INET */
+			if (pthread_create(&thread_Read, NULL, reading_thread, (void *)new_socket_descriptor)  ==  0) {
+				printf("INFO - Server's read thread initiated\n");
+			} else printf("ERROR - Server's read thread not initiated\n");
 
-    /*-----------------------------------------------------------*/
-    /* SOLUTION 2 : utiliser un nouveau numero de port */
-    adresse_locale.sin_port = htons(5000);
-    /*-----------------------------------------------------------*/
+			printf(in_msg,"Hi ! There is a new client on the server :) !\n");
 
-    printf("Numero de port utilisé : %d \n",
-		   ntohs(adresse_locale.sin_port) /*ntohs(ptr_service->s_port)*/);
-
-    /* creation de la socket */
-    if ((socket_descriptor = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-  		perror("erreur : impossible de creer la socket de connexion avec le client.");
-  		exit(1);
-    }
-
-    /* association du socket socket_descriptor à la structure d'adresse adresse_locale */
-    if ((bind(socket_descriptor, (sockaddr*)(&adresse_locale), sizeof(adresse_locale))) < 0) {
-  		perror("erreur : impossible de lier la socket a l'adresse de connexion.");
-  		exit(1);
-    }
-
-    /* initialisation de la file d'ecoute */
-    listen(socket_descriptor, 5);
-
-    /* attente des connexions et traitement des donnees recues */
-    for(;;) {
-
-      /* Accepter les connexions */
-      nouv_socket_descriptor = acceptConnexion(socket_descriptor);
-
-      addToList(nouv_socket_descriptor);
-
-      envoi(nouv_socket_descriptor);
-
-      /* Ferme la connexion */
-  		//close(nouv_socket_descriptor);
-
-    }
-
+			for (i=0; i< countActiveConnection; i++){
+					if(socketList[i] != 0){
+				replying(socketList[i],in_msg);
+				}
+			}
+		}
+		else {
+			printf("Server full, please wait...\n"); 
+			sleep(15);
+		}
+	}
 }
+

@@ -85,7 +85,7 @@ Your groupe name : Epice
 !quit
 ```
 
-
+Le projet est disponible sur notre [GitHub](https://github.com/Martinus72/Projet-Chat). Enjoy ! :)
 
 
 

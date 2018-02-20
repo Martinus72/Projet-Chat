@@ -36,7 +36,7 @@ char* reading(int sock){
    if ((lenght = read(sock, buffer, 4096)) <= 0){
       printf("ERROR - Lenght message problem of %d from client %d.\n", lenght, sock);
       return;
-   } 
+   }
    return buffer;
 }
 
@@ -45,16 +45,16 @@ int acceptNewCo(int socket_descriptor){
    int new_socket_descriptor,
       current_addr_lenght;
    // Current client's adress
-   sockaddr_in current_client_addr; 
+   sockaddr_in current_client_addr;
 
    current_addr_lenght = sizeof(current_client_addr);
-   
+
    if ((new_socket_descriptor = accept(socket_descriptor, (sockaddr*)(&current_client_addr), &current_addr_lenght)) < 0) {
       perror("ERROR - Connection not accepted");
       exit(1);
    }
-   printf("Connection on %d from %s:%d\n", new_socket_descriptor, (char *)inet_ntoa(current_client_addr.sin_addr), htons(current_client_addr.sin_port)); 
-   
+   printf("Connection on %d from %s:%d\n", new_socket_descriptor, (char *)inet_ntoa(current_client_addr.sin_addr), htons(current_client_addr.sin_port));
+
    return new_socket_descriptor;
 }
 
@@ -64,14 +64,14 @@ void addSocketList (int new_socket_descriptor) {
    int added = 0;
 
    // Check if there's a free place
-   for (i = 0; i < NB_MAX_CO; i++){    
+   for (i = 0; i < NB_MAX_CO; i++){
       if (socketList[i] == 0) {
          socketList[i] = new_socket_descriptor;
          added = 1;
          countActiveConnection++;
          break;
-      }     
-   }     
+      }
+   }
    // else
    if (added == 0) {
       socketList[countActiveConnection] = new_socket_descriptor;
@@ -81,24 +81,24 @@ void addSocketList (int new_socket_descriptor) {
 
 /* Server initialisation */
 int initServer (int nb_max_client) {
-    int socket_descriptor;       
+    int socket_descriptor;
     // Local adress structure
     sockaddr_in   local_addr;
     // Host machine info
-   hostent* ptr_hote;         
+   hostent* ptr_hote;
    // Service machine info
-    servent*   ptr_service;         
+    servent*   ptr_service;
     // Local machine name
-    char machine[TAILLE_MAX_NOM+1];    
+    char machine[TAILLE_MAX_NOM+1];
 
-    gethostname(machine,TAILLE_MAX_NOM);     
- 
+    gethostname(machine,TAILLE_MAX_NOM);
+
     // Get adress structure with name
-    if ((ptr_hote = gethostbyname(machine)) == NULL) {
+    if ((ptr_hote = gethostbyname("localhost")) == NULL) {
       perror("ERROR - Server name not found");
       exit(1);
     }
-        
+
     // Copy ptr_hote to  local_addr
     bcopy((char*)ptr_hote->h_addr, (char*)&local_addr.sin_addr, ptr_hote->h_length);
     local_addr.sin_family     = ptr_hote->h_addrtype;
@@ -106,9 +106,9 @@ int initServer (int nb_max_client) {
 
     // Use the given port number
     local_addr.sin_port = htons(PORT);
-    
+
     printf("INFO - Connection on server with port : %d \n", ntohs(local_addr.sin_port));
-    
+
     // Socket creation
     if ((socket_descriptor = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
       perror("ERROR - Socket doesn't created");
